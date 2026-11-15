@@ -18,7 +18,7 @@ from chart_labeler.label import (
     labels_for_staff,
     merge_readings,
 )
-from chart_labeler.omr import read_page
+from chart_labeler.omr import prepare, read_page
 
 # Each page is read once per resolution; the readings then vote.
 RESOLUTIONS = (200, 150, 260)
@@ -28,6 +28,7 @@ VERIFIED = (0.85, 0.05, 0.05)  # red
 UNVERIFIED = (0.95, 0.5, 0.0)  # orange
 FONT = "hebo"  # Helvetica Bold, built into every PDF viewer
 CAP_HEIGHT = 0.72
+SHRINKS = 3  # times crowded labels may be made smaller
 
 
 INK_DPI = 100
@@ -82,15 +83,21 @@ def _place(labels: list[Label], ink: np.ndarray) -> list[tuple[Label, pymupdf.Po
     wanted = [x for x, _ in spots]
     tops = [top for _, top in spots]
     sizes = [base] * len(labels)
-    for _ in range(4):
+
+    def same_height(i: int, j: int) -> bool:
+        return tops[j] < tops[i] + CAP_HEIGHT * sizes[i] and tops[i] < tops[j] + CAP_HEIGHT * sizes[j]
+
+    for attempt in range(SHRINKS + 1):
         widths = [pymupdf.get_text_length(l.text, FONT, fs) for l, fs in zip(labels, sizes)]
         centres = list(wanted)
         for _ in range(200):
             moved = False
             for i in range(len(labels) - 1):
-                j = i + 1
-                if tops[j] >= tops[i] + CAP_HEIGHT * sizes[i] or tops[i] >= tops[j] + CAP_HEIGHT * sizes[j]:
-                    continue  # on different heights, cannot collide
+                # The next label at the same height, which may not be the next label:
+                # one beside a low note can sit between two that are under the staff.
+                j = next((j for j in range(i + 1, len(labels)) if same_height(i, j)), None)
+                if j is None:
+                    continue
                 overlap = (widths[i] + widths[j]) / 2 + pad - (centres[j] - centres[i])
                 if overlap > 0.01:
                     centres[i] -= overlap / 2
@@ -99,8 +106,8 @@ def _place(labels: list[Label], ink: np.ndarray) -> list[tuple[Label, pymupdf.Po
             if not moved:
                 break
         crowded = [i for i in range(len(labels)) if abs(centres[i] - wanted[i]) > 0.9 * unit]
-        if not crowded:
-            break
+        if not crowded or attempt == SHRINKS:
+            break  # the layout just computed matches the current sizes
         for i in crowded:
             sizes[i] = max(sizes[i] * 0.82, 0.55 * base)
     return [
@@ -123,9 +130,16 @@ def _draw(page: pymupdf.Page, labels: list[Label]) -> None:
             page.insert_text(origin, label.text, color=color, **common)
 
 
+def _warn(text: str) -> None:
+    print(f"\n  {text}", file=sys.stderr)
+
+
 def read_labels(doc: pymupdf.Document, resolutions=RESOLUTIONS, progress=None,
-                all_voices: bool = False, read=read_page) -> list[list[Label]]:
-    """Reads the whole document once per resolution and returns voted labels per page."""
+                all_voices: bool = False, read=read_page, warn=_warn) -> list[list[Label]]:
+    """Reads the whole document once per resolution and returns voted labels per page.
+
+    A page that fails to read is left unlabelled in that reading, with a warning.
+    """
     runs: list[list[list[Label]]] = []  # run -> page -> labels
     with tempfile.TemporaryDirectory() as tmp:
         for run, dpi in enumerate(resolutions):
@@ -138,7 +152,8 @@ def read_labels(doc: pymupdf.Document, resolutions=RESOLUTIONS, progress=None,
                 page.get_pixmap(dpi=dpi, alpha=False).save(image_path)
                 try:
                     staffs = read(image_path, scale=72 / dpi)
-                except Exception:  # a page without music, e.g. a title page
+                except Exception as error:
+                    warn(f"page {number} could not be read at {dpi} dpi: {type(error).__name__}: {error}")
                     staffs = []
                 page_staffs = [labels_for_staff(s, all_voices) for s in staffs]
                 staffs_in_order.extend(page_staffs)
@@ -164,6 +179,31 @@ def label_pdf(src: Path, dst: Path, fast: bool = False, all_voices: bool = False
     return pages
 
 
+def _jobs(sources: list[Path], output: Path | None) -> list[tuple[Path, Path]]:
+    """Pairs every input with its output file, or exits before any work is done."""
+    jobs = []
+    for src in sources:
+        if not src.is_file():
+            sys.exit(f"Not a file: {src}")
+        if output is None:
+            dst = src.with_name(f"{src.stem} (bass notes).pdf")
+        elif output.is_dir() or len(sources) > 1:
+            dst = output / f"{src.stem} (bass notes).pdf"
+        else:
+            dst = output
+        jobs.append((src, dst))
+    inputs = {src.resolve() for src, _ in jobs}
+    seen: dict[Path, Path] = {}
+    for src, dst in jobs:
+        if dst.resolve() in inputs:
+            sys.exit(f"The output {dst} would overwrite an input file; choose another -o")
+        if dst.resolve() in seen:
+            sys.exit(f"{seen[dst.resolve()]} and {src} would both be written to {dst}; "
+                     "label them into different folders")
+        seen[dst.resolve()] = src
+    return jobs
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="chart-labeler", description=__doc__)
     parser.add_argument("pdf", nargs="+", type=Path, help="chart PDF(s) to label")
@@ -176,16 +216,13 @@ def main() -> None:
                         help="also label notes played above a held bass note "
                              "(by default only the held note is labelled)")
     args = parser.parse_args()
-    for src in args.pdf:
-        if not src.is_file():
-            sys.exit(f"Not a file: {src}")
-        if args.output is None:
-            dst = src.with_name(f"{src.stem} (bass notes).pdf")
-        elif args.output.is_dir() or len(args.pdf) > 1:
-            args.output.mkdir(parents=True, exist_ok=True)
-            dst = args.output / f"{src.stem} (bass notes).pdf"
-        else:
-            dst = args.output
+    jobs = _jobs(args.pdf, args.output)
+    try:
+        prepare()
+    except Exception as error:
+        sys.exit(f"Could not load the recognition models: {type(error).__name__}: {error}")
+    for src, dst in jobs:
+        dst.parent.mkdir(parents=True, exist_ok=True)
         print(f"Reading {src.name}", file=sys.stderr)
         pages = label_pdf(src, dst, fast=args.fast, all_voices=args.all_voices)
         total = sum(len(p) for p in pages)

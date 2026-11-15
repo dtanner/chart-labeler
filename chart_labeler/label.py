@@ -261,17 +261,29 @@ def _match(readings: list[_Reading], staff: StaffRead) -> list[Notehead | None]:
     return result
 
 
+def _is_bass_staff(staff: StaffRead, saw_bass: bool) -> bool:
+    if staff.is_upper_of_grand:
+        return False
+    if not staff.is_lower_of_grand and not saw_bass:
+        return False
+    # A lower staff without a bass clef: two treble staffs paired by mistake
+    # (two voices, or the voice with the piano's right hand), and the piano's
+    # bass staff is further down.
+    return saw_bass or staff.last_in_system
+
+
+def may_get_labels(staff: StaffRead) -> bool:
+    """False for a staff that labels_for_staff gives no labels, whatever the voices option."""
+    return not staff.is_upper_of_grand and _is_bass_staff(staff, _lowest_notes(staff, True)[1])
+
+
 def labels_for_staff(staff: StaffRead, all_voices: bool = False) -> StaffLabels:
     """Labels for one staff from one reading. Staffs without bass notes give none."""
     result = StaffLabels()
     if staff.is_upper_of_grand:
         return result
     readings, saw_bass, result.start_key, result.changes = _lowest_notes(staff, all_voices)
-    if not staff.is_lower_of_grand and not saw_bass:
-        return result
-    if not staff.last_in_system and not saw_bass:
-        # Two treble staffs paired by mistake (two voices, or the voice with
-        # the piano's right hand): the piano's bass staff is further down.
+    if not _is_bass_staff(staff, saw_bass):
         return result
     heads = _match(readings, staff)
     taken = {id(h) for h in heads if h is not None}

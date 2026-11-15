@@ -13,6 +13,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+from chart_labeler.label import may_get_labels
 from chart_labeler.omr import Notehead, StaffRead
 
 MATCH_SCORE = 0.72  # template correlation that counts as a notehead
@@ -23,7 +24,8 @@ REACH_BELOW = 10.0
 
 
 def locate_noteheads(image_path: str, staffs: list[StaffRead], scale: float) -> None:
-    """Adds the noteheads homr missed to every staff and measures `Notehead.step` of all.
+    """Adds the noteheads homr missed to every staff that can get labels, and measures
+    `Notehead.step` of all of that staff's noteheads.
 
     `scale` converts image pixels to the staff coordinates (as in read_page).
     """
@@ -35,10 +37,12 @@ def locate_noteheads(image_path: str, staffs: list[StaffRead], scale: float) -> 
     templates = [t for t in (_template(dark, staffs, k, True), _template(dark, staffs, k, False)) if t is not None]
     ordered = sorted(staffs, key=lambda s: s.lines_at(s.x_range[0])[0])
     for index, staff in enumerate(ordered):
+        if not may_get_labels(staff):
+            continue  # a vocal line or the piano's right hand: its noteheads are never used
         x0, x1 = staff.x_range
         middle = (x0 + x1) / 2
         lines, unit = staff.lines_at(middle), staff.unit_at(middle)
-        if templates and not staff.is_upper_of_grand:
+        if templates:
             top, bottom = lines[0] - REACH_ABOVE * unit, lines[4] + REACH_BELOW * unit
             if index > 0:
                 top = max(top, (ordered[index - 1].lines_at(middle)[4] + lines[0]) / 2)
@@ -91,7 +95,7 @@ def _add_matches(dark: np.ndarray, template: np.ndarray, staff: StaffRead,
         # Noteheads homr found itself are left exactly as they are.
         if any(abs(h.x - x) < 0.8 * unit and abs(h.y - y) < 1.0 * unit for h in staff.noteheads):
             continue
-        staff.noteheads.append(Notehead(x, y, tw / k / 2, th / k / 2, added=True))
+        staff.noteheads.append(Notehead(x, y, added=True))
     staff.noteheads.sort(key=lambda h: h.x)
 
 

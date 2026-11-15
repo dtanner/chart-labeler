@@ -1,16 +1,23 @@
-#!/usr/bin/env python3
-"""Runs chart-labeler in this project's environment, from any directory.
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "homr[cpu]>=0.7.1,<0.8",
+#     "pymupdf>=1.24",
+# ]
+# ///
+"""Runs chart-labeler from any directory.
 
-Can be symlinked onto the PATH: the project is found from this file's real
-location, and PDF paths stay relative to the directory it is called from.
+Can be symlinked onto the PATH: the chart_labeler package is found next to
+this file's real location, and PDF paths stay relative to the directory it is
+called from.
 """
 
-import os
 import sys
 from pathlib import Path
 
-project = Path(__file__).resolve().parent
-try:
-    os.execvp("uv", ["uv", "run", "--project", str(project), "chart-labeler", *sys.argv[1:]])
-except FileNotFoundError:
-    sys.exit("chart-labeler needs uv: https://docs.astral.sh/uv/")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from chart_labeler.cli import main  # noqa: E402
+
+main()

@@ -2,16 +2,23 @@
 
 Writes the name of each bass note onto a PDF song chart, so the bass line can
 be played without reading staff notation. Works on scans, phone photos saved
-as PDF, and PDFs exported from notation software. Runs entirely on this Mac.
+as PDF, and PDFs exported from notation software. Runs entirely on your own
+computer; nothing is uploaded.
 
 ## Use
 
+Needs [uv](https://docs.astral.sh/uv/). Clone the repository, then run the
+`chart-labeler` file in it. It is a uv script: the first run fetches Python 3.13
+and the dependencies listed at its top, at the versions in `chart-labeler.lock`.
+
 ```sh
-uv run chart-labeler "/path/to/song.pdf"
+git clone https://github.com/dtanner/chart-labeler.git
+cd chart-labeler
+./chart-labeler "/path/to/song.pdf"
 ```
 
-Or run the `chart-labeler` file in this folder directly. It works from any
-directory, so it can be linked onto the PATH once and then used anywhere:
+It works from any directory, so it can be linked onto the PATH once and then
+used anywhere:
 
 ```sh
 ln -s "$PWD/chart-labeler" ~/.local/bin/chart-labeler
@@ -19,8 +26,8 @@ chart-labeler "/path/to/song.pdf"
 ```
 
 This writes `song (bass notes).pdf` next to the original. The original is not
-changed. Several PDFs can be given at once. The first run downloads the
-recognition models (about 250 MB). A 5-page song takes about 2 minutes.
+changed. Several PDFs can be given at once; they are all checked before any is
+read. The first run also downloads the recognition models (about 250 MB). A 5-page song takes about 2 minutes.
 
 Options:
 
@@ -73,6 +80,13 @@ comes out as `B`), and can be printed in red.
 ```sh
 uv run pytest
 ```
+
+The dependencies are listed twice: in `pyproject.toml` for development, and at
+the top of `chart-labeler` for the launcher, with its own lock file. A test
+checks that the two lists match. After changing them, run `uv lock` and
+`uv lock --script chart-labeler`.
+
+GitHub Actions runs the tests on every push.
 
 ### Measuring accuracy
 

@@ -64,10 +64,10 @@ def test_held_notes_end_at_the_barline():
 
 def test_label_sits_on_the_matching_notehead():
     # D2 hangs under the first ledger line: 3 steps below the bottom line.
-    head = Notehead(104.0, BOTTOM + 1.5 * UNIT, 12.0, 10.0)
+    head = Notehead(104.0, BOTTOM + 1.5 * UNIT)
     result = labels_for_staff(staff([note("D2", "b", x=100)], heads=[head]))
     assert result.labels[0].verified and result.labels[0].x == 104.0
-    wrong_height = Notehead(104.0, BOTTOM, 12.0, 10.0)
+    wrong_height = Notehead(104.0, BOTTOM)
     result = labels_for_staff(staff([note("D2", "b", x=100)], heads=[wrong_height]))
     assert not result.labels[0].verified
 
@@ -106,7 +106,7 @@ def test_note_seen_once_without_a_notehead_is_dropped():
 
 
 def head_at(x, step, added=False):
-    return Notehead(x, BOTTOM - step * UNIT / 2, 6.0, 5.0, step=float(step), added=added)
+    return Notehead(x, BOTTOM - step * UNIT / 2, step=float(step), added=added)
 
 
 def test_misread_low_note_of_an_octave_takes_the_name_of_the_note_it_doubles():
@@ -134,8 +134,8 @@ def test_octave_correction_keeps_the_accidental_of_the_doubled_note():
 def test_misread_key_signature_is_taken_from_neighbouring_lines():
     def line(k, lift):
         return labels_for_staff(staff([key(k), note("B2", lift, x=100.0), note("A2", "#", x=200.0)],
-                                      heads=[Notehead(100.0, BOTTOM - 2 * UNIT / 2, 5, 5),
-                                             Notehead(200.0, BOTTOM - 1 * UNIT / 2, 5, 5)]))
+                                      heads=[Notehead(100.0, BOTTOM - 2 * UNIT / 2),
+                                             Notehead(200.0, BOTTOM - 1 * UNIT / 2)]))
 
     lines = [line(-2, "b"), line(0, "_"), line(-2, "b")]
     apply_key_signatures(lines)

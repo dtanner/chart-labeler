@@ -3,9 +3,9 @@ name = "chart-labeler"
 version = "0.1.0"
 description = "Labels the bass notes on PDF song charts with their note names"
 license = "AGPL-3.0-or-later"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13"
 dependencies = [
-    "homr>=0.7.1",
+    "homr[cpu]>=0.7.1,<0.8",  # chart_labeler.omr uses homr internals
     "pymupdf>=1.24",
 ]
 

@@ -236,17 +236,11 @@ def _cached_read(image_path: str, scale: float):
 
     digest = hashlib.sha1(Path(image_path).read_bytes() + repr(scale).encode() + b"v2").hexdigest()
     stored = CACHE / f"{digest}.pkl"
-    if stored.exists():
-        staffs = pickle.loads(stored.read_bytes())
-    else:
-        try:
-            staffs = read_staffs(image_path, scale)
-        except Exception:
-            staffs = None
+    staffs = pickle.loads(stored.read_bytes()) if stored.exists() else None
+    if staffs is None:  # not read yet, or a failure stored by an older version: read again
+        staffs = read_staffs(image_path, scale)  # a failure is raised and not stored
         CACHE.mkdir(exist_ok=True)
         stored.write_bytes(pickle.dumps(staffs))
-    if staffs is None:
-        raise ValueError("no music found on the page")
     locate_noteheads(image_path, staffs, scale)
     return staffs
 

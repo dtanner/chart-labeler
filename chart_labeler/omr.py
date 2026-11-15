@@ -31,8 +31,6 @@ class Token:
 class Notehead:
     x: float
     y: float
-    w: float
-    h: float
     step: float | None = None  # steps above the bottom staff line, measured in the image
     added: bool = False  # found by chart_labeler.heads, not by homr
 
@@ -107,6 +105,14 @@ class StaffRead:
 
 _initialised = False
 
+# homr's messages for an image it finds no music in, e.g. a title page.
+NO_MUSIC = ("No staffs found", "No noteheads or clefs found")
+
+
+def prepare() -> None:
+    """Loads the models, downloading them on first use. Errors here are real failures."""
+    _init()
+
 
 def _init() -> tuple[bool, bool]:
     global _initialised
@@ -123,7 +129,7 @@ def _init() -> tuple[bool, bool]:
 
 
 def read_page(image_path: str, scale: float = 1.0, verbose: bool = False) -> list[StaffRead]:
-    """Returns every staff on the page, top to bottom.
+    """Returns every staff on the page, top to bottom; none for a page without music.
 
     Coordinates are image pixels multiplied by `scale`.
     """
@@ -149,7 +155,12 @@ def read_staffs(image_path: str, scale: float = 1.0, verbose: bool = False) -> l
         if not verbose:
             stack.enter_context(contextlib.redirect_stderr(sink))
             stack.enter_context(contextlib.redirect_stdout(sink))
-        multi_staffs, image, debug, _, _, to_image = hm.detect_staffs_in_image(image_path, config)
+        try:
+            multi_staffs, image, debug, _, _, to_image = hm.detect_staffs_in_image(image_path, config)
+        except Exception as error:
+            if str(error) in NO_MUSIC:
+                return []
+            raise
 
         def to_input(point: tuple[float, float]) -> tuple[float, float]:
             x, y = to_image(point)
@@ -192,8 +203,7 @@ def _convert(staff, symbols, to_input) -> list[StaffRead]:
         out = []
         for n in st.get_notes():
             cx, cy = to_input(n.center)
-            ex, ey = to_input((n.center[0] + n.box.size[0], n.center[1] + n.box.size[1]))
-            out.append(Notehead(float(cx), float(cy), float(abs(ex - cx)), float(abs(ey - cy))))
+            out.append(Notehead(float(cx), float(cy)))
         return sorted(out, key=lambda h: h.x)
 
     tokens = [tok(s) for s in symbols]
