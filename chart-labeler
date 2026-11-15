@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""Runs chart-labeler in this project's environment, from any directory.
+
+Can be symlinked onto the PATH: the project is found from this file's real
+location, and PDF paths stay relative to the directory it is called from.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+project = Path(__file__).resolve().parent
+try:
+    os.execvp("uv", ["uv", "run", "--project", str(project), "chart-labeler", *sys.argv[1:]])
+except FileNotFoundError:
+    sys.exit("chart-labeler needs uv: https://docs.astral.sh/uv/")

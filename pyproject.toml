@@ -1,0 +1,25 @@
+[project]
+name = "chart-labeler"
+version = "0.1.0"
+description = "Labels the bass notes on PDF song charts with their note names"
+license = "AGPL-3.0-or-later"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "homr>=0.7.1",
+    "pymupdf>=1.24",
+]
+
+[project.scripts]
+chart-labeler = "chart_labeler.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["chart_labeler"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
