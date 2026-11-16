@@ -5,6 +5,11 @@ be played without reading staff notation. Works on scans, phone photos saved
 as PDF, and PDFs exported from notation software. Runs entirely on your own
 computer; nothing is uploaded.
 
+![Piano bass staff with each note's name printed in red underneath](docs/example.png)
+
+*Beethoven, "Mailied" Op. 52 No. 4, from [OpenScore Lieder](https://github.com/OpenScore/Lieder)
+(CC0), as labelled by chart-labeler.*
+
 ## Use
 
 Needs [uv](https://docs.astral.sh/uv/). Clone the repository, then run the
